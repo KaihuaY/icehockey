@@ -1,0 +1,42 @@
+name: Rookie Program watch
+
+on:
+  schedule:
+    # 13:00 UTC = 09:00 America/New_York during EDT, 08:00 during EST.
+    # GitHub often delays scheduled runs by 5-20 minutes at peak; that's fine here.
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - id: check
+        name: Check the activity list
+        run: python check_rookie.py
+
+      - name: Open an issue for the new session
+        if: steps.check.outputs.has_new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.check.outputs.title }}
+        run: gh issue create --title "$TITLE" --body-file issue_body.md
+
+      - name: Record what we have seen
+        run: |
+          rm -f issue_body.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen.json
+          git diff --staged --quiet || git commit -m "state: checked $(date -u +%Y-%m-%d)"
+          git push
